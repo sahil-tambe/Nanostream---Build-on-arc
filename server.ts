@@ -10,10 +10,11 @@ import {
   syncOrLinkWeb3Wallet,
   updateAgentSettings,
   processNanopaymentStream,
+  getX402Services,
+  getUserTransactions,
+  getUserAuditLogs,
+  recordAuditLog,
 } from './src/db/users.ts';
-import { db } from './src/db/index.ts';
-import { transactions, auditLogs, x402Services } from './src/db/schema.ts';
-import { eq, desc } from 'drizzle-orm';
 
 const PORT = 3000;
 
@@ -220,7 +221,7 @@ async function startServer() {
   // 6. List available x402-compatible micro-services
   app.get('/api/x402/services', async (_req: Request, res: Response) => {
     try {
-      const services = await db.select().from(x402Services);
+      const services = await getX402Services();
       res.json({ success: true, services });
     } catch (error: any) {
       console.error('Error fetching x402 services:', error);
@@ -359,13 +360,7 @@ async function startServer() {
   app.get('/api/transactions', optionalAuth, async (req: AuthRequest, res: Response) => {
     try {
       const userId = await getUserIdFromRequest(req);
-      const userTxs = await db
-        .select()
-        .from(transactions)
-        .where(eq(transactions.userId, userId))
-        .orderBy(desc(transactions.createdAt))
-        .limit(50);
-
+      const userTxs = await getUserTransactions(userId);
       res.json({ success: true, transactions: userTxs });
     } catch (error: any) {
       console.error('Error fetching transactions:', error);
@@ -377,13 +372,7 @@ async function startServer() {
   app.get('/api/audit-logs', optionalAuth, async (req: AuthRequest, res: Response) => {
     try {
       const userId = await getUserIdFromRequest(req);
-      const userAuditLogs = await db
-        .select()
-        .from(auditLogs)
-        .where(eq(auditLogs.userId, userId))
-        .orderBy(desc(auditLogs.createdAt))
-        .limit(50);
-
+      const userAuditLogs = await getUserAuditLogs(userId);
       res.json({ success: true, auditLogs: userAuditLogs });
     } catch (error: any) {
       console.error('Error fetching audit logs:', error);
@@ -416,12 +405,12 @@ async function startServer() {
         logs.push('Skills update complete! Agent is using latest 2026 Circle Stack patterns.');
       }
 
-      await db.insert(auditLogs).values({
+      await recordAuditLog(
         userId,
-        action: 'CIRCLE_CLI_UPDATE',
-        severity: 'INFO',
-        details: `Executed CLI Command: '${command}'. CLI upgraded to ${updatedVersion}`,
-      });
+        'CIRCLE_CLI_UPDATE',
+        'INFO',
+        `Executed CLI Command: '${command}'. CLI upgraded to ${updatedVersion}`
+      );
 
       res.json({
         success: true,

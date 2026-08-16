@@ -6,7 +6,14 @@ declare global {
   var _postgresPool: Pool | undefined;
 }
 
+export const isPostgresConfigured = (): boolean => {
+  return Boolean(process.env.SQL_HOST && process.env.SQL_DB_NAME && process.env.SQL_USER);
+};
+
 export const createPool = () => {
+  if (!isPostgresConfigured()) {
+    return null;
+  }
   if (!global._postgresPool) {
     global._postgresPool = new Pool({
       host: process.env.SQL_HOST,
@@ -14,7 +21,7 @@ export const createPool = () => {
       password: process.env.SQL_PASSWORD,
       database: process.env.SQL_DB_NAME,
       max: 10,
-      connectionTimeoutMillis: 15000,
+      connectionTimeoutMillis: 3000,
     });
 
     global._postgresPool.on('error', (err) => {
@@ -26,4 +33,5 @@ export const createPool = () => {
 
 const pool = createPool();
 
-export const db = drizzle(pool, { schema });
+export const db = pool ? drizzle(pool, { schema }) : null;
+

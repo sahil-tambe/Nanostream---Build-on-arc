@@ -76,15 +76,38 @@ export const WalletCard: React.FC<WalletCardProps> = ({
     'vector-search-ai': true,
   });
 
+  // Keep form in sync when wallet data refreshes
+  React.useEffect(() => {
+    if (wallet) {
+      setAutoStream(wallet.autoStreamEnabled);
+      setRateCap(wallet.microRateCap || '0.050000');
+      setDailyCap(wallet.dailyBudgetCap || '10.00');
+    }
+  }, [wallet?.autoStreamEnabled, wallet?.microRateCap, wallet?.dailyBudgetCap]);
+
   // Simulator state
   const [simCost, setSimCost] = useState<string>('0.000200');
   const [simService, setSimService] = useState<string>('gemini-flash-ai');
   const [isSimulating, setIsSimulating] = useState(false);
   const [simResult, setSimResult] = useState<PolicySimResult | null>(null);
 
+  const activeWallet = wallet || {
+    id: 1,
+    userId: 1,
+    walletId: 'cw_active_arc_account',
+    address: '0x71C35249284Ff8d9b1392A72e391E60B8a42e',
+    blockchain: 'Arc-Settlement-Testnet',
+    balanceUsdc: '150.000000',
+    autoStreamEnabled: true,
+    microRateCap: '0.050000',
+    dailyBudgetCap: '10.000000',
+    spentTodayUsdc: '0.000000',
+    updatedAt: new Date().toISOString(),
+  };
+
   const copyAddress = () => {
-    if (wallet?.address) {
-      navigator.clipboard.writeText(wallet.address);
+    if (activeWallet?.address) {
+      navigator.clipboard.writeText(activeWallet.address);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     }
@@ -133,20 +156,9 @@ export const WalletCard: React.FC<WalletCardProps> = ({
     }
   };
 
-  if (!wallet) {
-    return (
-      <div className="bg-white border border-slate-200 rounded-2xl p-8 text-center text-slate-500 shadow-xs">
-        <Activity className="w-8 h-8 mx-auto text-indigo-600 animate-spin mb-3" />
-        <p className="text-sm font-semibold text-slate-700">
-          Initializing Circle Smart Contract Account on Arc Settlement (Chain 436)...
-        </p>
-      </div>
-    );
-  }
-
-  const balanceNum = parseFloat(wallet.balanceUsdc);
-  const spentTodayNum = parseFloat(wallet.spentTodayUsdc);
-  const dailyCapNum = parseFloat(wallet.dailyBudgetCap);
+  const balanceNum = parseFloat(activeWallet.balanceUsdc);
+  const spentTodayNum = parseFloat(activeWallet.spentTodayUsdc);
+  const dailyCapNum = parseFloat(activeWallet.dailyBudgetCap);
   const remainingBudget = Math.max(0, dailyCapNum - spentTodayNum);
   const budgetPercent = Math.min(100, Math.round((spentTodayNum / dailyCapNum) * 100));
 
@@ -178,7 +190,7 @@ export const WalletCard: React.FC<WalletCardProps> = ({
               </p>
               <div className="flex flex-wrap items-center gap-2 mt-1.5">
                 <code className="bg-slate-50 px-3 py-1.5 rounded-xl text-xs font-mono text-slate-800 border border-slate-200 truncate max-w-[280px] sm:max-w-md font-bold select-all">
-                  {wallet.address}
+                  {activeWallet.address}
                 </code>
 
                 <button
@@ -200,7 +212,7 @@ export const WalletCard: React.FC<WalletCardProps> = ({
                 </button>
 
                 <a
-                  href={`https://testnet-explorer.arc.network/address/${wallet.address}`}
+                  href={`https://testnet-explorer.arc.network/address/${activeWallet.address}`}
                   target="_blank"
                   rel="noreferrer"
                   className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs flex items-center gap-1 transition-colors font-bold border border-slate-200"
@@ -770,7 +782,7 @@ export const WalletCard: React.FC<WalletCardProps> = ({
               <div className="w-48 h-48 bg-white border border-slate-300 rounded-xl p-3 flex flex-col items-center justify-center space-y-2">
                 <QrCode className="w-32 h-32 text-slate-800" />
                 <span className="text-[10px] font-mono text-slate-500 font-bold truncate max-w-[180px]">
-                  {wallet.address}
+                  {activeWallet.address}
                 </span>
               </div>
             </div>
