@@ -267,9 +267,15 @@ export const X402Marketplace: React.FC<X402MarketplaceProps> = ({
 
             {/* Error Message banner */}
             {errorMessage && (
-              <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700 font-medium flex items-center space-x-2">
-                <ShieldAlert className="w-4 h-4 text-rose-600 flex-shrink-0" />
-                <span>{errorMessage}</span>
+              <div className="p-4 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800 space-y-1.5 shadow-2xs">
+                <div className="flex items-center space-x-2 font-bold text-rose-900">
+                  <ShieldAlert className="w-4 h-4 text-rose-600 flex-shrink-0" />
+                  <span>x402 Micropayment Guardrail Blocked (HTTP 403)</span>
+                </div>
+                <p className="pl-6 font-medium text-rose-700">{errorMessage}</p>
+                <div className="pl-6 pt-1 text-[11px] text-rose-600 flex items-center gap-1 font-semibold">
+                  <span>💡 Tip: Adjust your Rate Cap or enable Auto-Streaming in the &ldquo;Wallet & Policy&rdquo; tab.</span>
+                </div>
               </div>
             )}
 

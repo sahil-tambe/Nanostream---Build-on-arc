@@ -122,6 +122,74 @@ async function startServer() {
     }
   });
 
+  // 5b. Simulate and verify transaction against current Policy Engine rules
+  app.post('/api/policy/simulate', optionalAuth, async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = await getUserIdFromRequest(req);
+      const wallet = await getUserWallet(userId);
+      if (!wallet) return res.status(404).json({ error: 'Wallet not found' });
+
+      const { testCostUsdc, testServiceId } = req.body;
+      const cost = parseFloat(testCostUsdc || '0.000200');
+      const balance = parseFloat(wallet.balanceUsdc);
+      const rateCap = parseFloat(wallet.microRateCap);
+      const budgetCap = parseFloat(wallet.dailyBudgetCap);
+      const spentToday = parseFloat(wallet.spentTodayUsdc);
+
+      const checks = [
+        {
+          rule: 'Autonomous Streaming Agent',
+          status: wallet.autoStreamEnabled ? 'PASSED' : 'FAILED',
+          message: wallet.autoStreamEnabled
+            ? 'Auto-streaming permission is active'
+            : 'Blocked: Auto-streaming is disabled by user policy',
+        },
+        {
+          rule: 'Micro-Rate Cap ($/tx)',
+          status: cost <= rateCap ? 'PASSED' : 'FAILED',
+          message:
+            cost <= rateCap
+              ? `Estimated cost ($${cost.toFixed(6)}) is within rate cap ($${rateCap.toFixed(6)})`
+              : `Violation: Cost ($${cost.toFixed(6)}) exceeds rate cap ($${rateCap.toFixed(6)})`,
+        },
+        {
+          rule: 'Daily Budget Limit',
+          status: spentToday + cost <= budgetCap ? 'PASSED' : 'FAILED',
+          message:
+            spentToday + cost <= budgetCap
+              ? `Daily usage ($${(spentToday + cost).toFixed(4)} / $${budgetCap.toFixed(2)}) is healthy`
+              : `Violation: Daily budget cap ($${budgetCap.toFixed(2)}) would be exceeded`,
+        },
+        {
+          rule: 'USDC Stream Pool Liquidity',
+          status: balance >= cost ? 'PASSED' : 'FAILED',
+          message:
+            balance >= cost
+              ? `Available balance ($${balance.toFixed(4)}) covers estimated cost`
+              : `Violation: Insufficient funds ($${balance.toFixed(4)} < $${cost.toFixed(6)})`,
+        },
+      ];
+
+      const allPassed = checks.every((c) => c.status === 'PASSED');
+
+      res.json({
+        success: true,
+        verdict: allPassed ? 'APPROVED' : 'BLOCKED',
+        statusCode: allPassed ? 200 : 403,
+        checks,
+        walletMetrics: {
+          balanceUsdc: wallet.balanceUsdc,
+          spentTodayUsdc: wallet.spentTodayUsdc,
+          microRateCap: wallet.microRateCap,
+          dailyBudgetCap: wallet.dailyBudgetCap,
+        },
+      });
+    } catch (error: any) {
+      console.error('Error simulating policy:', error);
+      res.status(500).json({ error: error.message || 'Policy simulation failed' });
+    }
+  });
+
   // 6. List available x402-compatible micro-services
   app.get('/api/x402/services', async (_req: Request, res: Response) => {
     try {
