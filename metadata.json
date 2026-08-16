@@ -1,0 +1,6 @@
+{
+  "name": "Nanostream Built on Arc",
+  "description": "AI-driven autonomous micro-USDC payment streaming for x402 APIs and micro-services built on Arc settlement with Circle Agent Stack.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
