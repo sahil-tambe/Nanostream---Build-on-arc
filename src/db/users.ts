@@ -109,6 +109,45 @@ export async function fundWallet(userId: number, amountUsdc: number) {
   }
 }
 
+export async function syncOrLinkWeb3Wallet(
+  userId: number,
+  web3Address: string,
+  walletType: string = 'metamask',
+  chainId: string = '0x1B4',
+  depositUsdcAmount?: number
+) {
+  try {
+    const wallet = await getUserWallet(userId);
+    if (!wallet) throw new Error('Wallet not found');
+
+    const currentBal = parseFloat(wallet.balanceUsdc);
+    const deposit = depositUsdcAmount && depositUsdcAmount > 0 ? depositUsdcAmount : 0;
+    const newBal = (currentBal + deposit).toFixed(6);
+
+    const updated = await db
+      .update(wallets)
+      .set({
+        address: web3Address || wallet.address,
+        balanceUsdc: newBal,
+        updatedAt: new Date(),
+      })
+      .where(eq(wallets.id, wallet.id))
+      .returning();
+
+    await db.insert(auditLogs).values({
+      userId,
+      action: 'WEB3_WALLET_CONNECTED',
+      severity: 'INFO',
+      details: `Linked Web3 ${walletType.toUpperCase()} Address (${web3Address}) on Chain ${chainId}. Stream Pool Balance: ${newBal} USDC`,
+    });
+
+    return updated[0];
+  } catch (error) {
+    console.error('Error syncing Web3 wallet:', error);
+    throw new Error('Failed to sync Web3 wallet', { cause: error });
+  }
+}
+
 export async function updateAgentSettings(
   userId: number,
   settings: { autoStreamEnabled?: boolean; microRateCap?: number; dailyBudgetCap?: number }

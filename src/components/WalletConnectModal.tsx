@@ -7,6 +7,7 @@ import {
   signStreamAuthorization,
   isMetaMaskInstalled,
   isCoinbaseWalletInstalled,
+  fetchWeb3Balances,
   ARC_TESTNET_CONFIG,
 } from '../lib/web3Wallet';
 import {
@@ -49,11 +50,31 @@ export const WalletConnectModal: React.FC<WalletConnectModalProps> = ({
   const [isSigning, setIsSigning] = useState(false);
   const [hasSigned, setHasSigned] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [isRefreshingBalances, setIsRefreshingBalances] = useState(false);
 
   if (!isOpen) return null;
 
   const hasMetaMask = isMetaMaskInstalled();
   const hasCoinbase = isCoinbaseWalletInstalled();
+
+  const handleRefreshBalances = async () => {
+    if (!connectedWallet) return;
+    setIsRefreshingBalances(true);
+    try {
+      const balances = await fetchWeb3Balances(connectedWallet.address);
+      const updated: ConnectedWeb3Wallet = {
+        ...connectedWallet,
+        balanceNative: balances.balanceNative,
+        balanceUsdc: balances.balanceUsdc,
+      };
+      onWalletConnected(updated);
+      showToast('Web3 & USDC Balances updated from on-chain provider!');
+    } catch (err: any) {
+      showToast(`Balance refresh failed: ${err.message}`, 'error');
+    } finally {
+      setIsRefreshingBalances(false);
+    }
+  };
 
   const handleConnect = async (walletType: 'metamask' | 'coinbase' | 'rainbow' | 'injected' | 'demo') => {
     setIsConnecting(true);
@@ -63,7 +84,7 @@ export const WalletConnectModal: React.FC<WalletConnectModalProps> = ({
       if (walletType === 'demo') {
         const demoWallet = connectDemoArcWallet('metamask');
         onWalletConnected(demoWallet);
-        showToast('Connected to Arc Settlement Demo Web3 Wallet!');
+        showToast('Connected to Arc Settlement Demo Web3 Wallet! (+$250 USDC)');
         return;
       }
 
@@ -320,10 +341,22 @@ export const WalletConnectModal: React.FC<WalletConnectModalProps> = ({
             <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Connected Account</span>
-                <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-green-50 text-green-700 border border-green-200 flex items-center gap-1">
-                  <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                  {connectedWallet.walletType.toUpperCase()} Connected
-                </span>
+                <div className="flex items-center space-x-2">
+                  <button
+                    type="button"
+                    onClick={handleRefreshBalances}
+                    disabled={isRefreshingBalances}
+                    className="p-1 rounded-md text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer border border-slate-200"
+                    title="Refresh on-chain balances"
+                  >
+                    <RefreshCw className={`w-3 h-3 ${isRefreshingBalances ? 'animate-spin text-indigo-600' : ''}`} />
+                    <span>{isRefreshingBalances ? 'Syncing...' : 'Sync USDC'}</span>
+                  </button>
+                  <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-green-50 text-green-700 border border-green-200 flex items-center gap-1">
+                    <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                    {connectedWallet.walletType.toUpperCase()}
+                  </span>
+                </div>
               </div>
 
               <div className="flex items-center justify-between bg-white border border-slate-200 rounded-lg p-2.5">

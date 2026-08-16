@@ -7,6 +7,7 @@ import {
   getOrCreateUserAndWallet,
   getUserWallet,
   fundWallet,
+  syncOrLinkWeb3Wallet,
   updateAgentSettings,
   processNanopaymentStream,
 } from './src/db/users.ts';
@@ -100,6 +101,32 @@ async function startServer() {
     } catch (error: any) {
       console.error('Error funding wallet:', error);
       res.status(500).json({ error: error.message || 'Failed to fund wallet' });
+    }
+  });
+
+  // 4b. Link & Sync Web3 EVM Wallet (MetaMask, Coinbase, Rainbow, Demo)
+  app.post('/api/wallet/link-web3', optionalAuth, async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = await getUserIdFromRequest(req);
+      const { web3Address, walletType, chainId, depositUsdcAmount } = req.body;
+
+      if (!web3Address) {
+        return res.status(400).json({ error: 'web3Address is required' });
+      }
+
+      const deposit = depositUsdcAmount ? parseFloat(depositUsdcAmount) : 0;
+      const updatedWallet = await syncOrLinkWeb3Wallet(
+        userId,
+        web3Address,
+        walletType || 'metamask',
+        chainId || '0x1B4',
+        deposit
+      );
+
+      res.json({ success: true, wallet: updatedWallet });
+    } catch (error: any) {
+      console.error('Error linking Web3 wallet:', error);
+      res.status(500).json({ error: error.message || 'Failed to link Web3 wallet' });
     }
   });
 

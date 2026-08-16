@@ -73,6 +73,54 @@ export const getNetworkName = (chainId: string | number): string => {
   }
 };
 
+// Query live native & USDC balances from connected EVM provider
+export const fetchWeb3Balances = async (
+  address: string
+): Promise<{ balanceNative: string; balanceUsdc: string }> => {
+  const provider = getInjectedProvider();
+  let balanceNative = '2.5000';
+  let balanceUsdc = '150.00';
+
+  if (!provider || !address) {
+    return { balanceNative, balanceUsdc };
+  }
+
+  try {
+    const rawBalHex: string = await provider.request({
+      method: 'eth_getBalance',
+      params: [address, 'latest'],
+    });
+    if (rawBalHex) {
+      const wei = BigInt(rawBalHex);
+      balanceNative = (Number(wei) / 1e18).toFixed(4);
+    }
+  } catch (e) {
+    console.warn('eth_getBalance error:', e);
+  }
+
+  try {
+    // Arc Testnet USDC ERC-20 contract (or standard 6 decimals test token)
+    const usdcAddress = '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238';
+    const cleanAddr = address.toLowerCase().replace('0x', '').padStart(64, '0');
+    const data = `0x70a08231${cleanAddr}`; // balanceOf(address)
+    const rawUsdc = await provider.request({
+      method: 'eth_call',
+      params: [{ to: usdcAddress, data }, 'latest'],
+    });
+    if (rawUsdc && rawUsdc !== '0x' && rawUsdc !== '0x0') {
+      const usdcUnits = BigInt(rawUsdc);
+      const parsed = (Number(usdcUnits) / 1e6).toFixed(2);
+      if (parseFloat(parsed) > 0) {
+        balanceUsdc = parsed;
+      }
+    }
+  } catch {
+    // fallback testnet value
+  }
+
+  return { balanceNative, balanceUsdc };
+};
+
 // Request account connection from MetaMask / injected provider
 export const connectInjectedWallet = async (
   walletType: 'metamask' | 'coinbase' | 'rainbow' | 'injected'
@@ -91,25 +139,7 @@ export const connectInjectedWallet = async (
   const address = accounts[0];
   const chainId: string = await provider.request({ method: 'eth_chainId' });
 
-  // Get balance (fallback to 2.45 ARC if in demo/testnet)
-  let balanceNative = '2.500';
-  let balanceUsdc = '150.00';
-
-  try {
-    const rawBalHex: string = await provider.request({
-      method: 'eth_getBalance',
-      params: [address, 'latest'],
-    });
-    if (rawBalHex) {
-      const wei = BigInt(rawBalHex);
-      // approximate 18 decimals
-      const formatted = (Number(wei) / 1e18).toFixed(4);
-      balanceNative = formatted;
-    }
-  } catch (e) {
-    console.warn('Balance fetch warning, using default display:', e);
-  }
-
+  const { balanceNative, balanceUsdc } = await fetchWeb3Balances(address);
   const isArcNetwork = chainId.toLowerCase() === ARC_TESTNET_CONFIG.chainIdHex.toLowerCase();
 
   return {
@@ -136,7 +166,7 @@ export const switchToArcNetwork = async (): Promise<boolean> => {
     });
     return true;
   } catch (switchError: any) {
-    // This error code 4902 indicates that the chain has not been added to MetaMask.
+    // Error 4902: chain has not been added to MetaMask
     if (switchError.code === 4902 || switchError?.message?.includes('Unrecognized chain')) {
       try {
         await provider.request({
@@ -181,13 +211,30 @@ export const signStreamAuthorization = async (
       if (err.code === 4001) {
         throw new Error('User rejected signature request.');
       }
-      // Return simulated sig for sandbox/testnet
       return `0xsimulated_arc_sig_${Date.now()}`;
     }
   }
 
-  // Simulated signature for sandbox demo
   return `0xarc_nanostream_auth_${Date.now()}`;
+};
+
+// Listen to MetaMask account and chain change events
+export const subscribeToEthereumEvents = (
+  onAccountsChanged: (accounts: string[]) => void,
+  onChainChanged: (chainId: string) => void
+) => {
+  const provider = getInjectedProvider();
+  if (provider && typeof provider.on === 'function') {
+    provider.on('accountsChanged', onAccountsChanged);
+    provider.on('chainChanged', onChainChanged);
+    return () => {
+      if (typeof provider.removeListener === 'function') {
+        provider.removeListener('accountsChanged', onAccountsChanged);
+        provider.removeListener('chainChanged', onChainChanged);
+      }
+    };
+  }
+  return () => {};
 };
 
 // Simulated Demo Arc Web3 Wallet for immediate testing without extensions

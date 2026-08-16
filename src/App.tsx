@@ -6,7 +6,14 @@ import { TransactionAuditLog } from './components/TransactionAuditLog';
 import { CircleCliConsole } from './components/CircleCliConsole';
 import { WalletConnectModal } from './components/WalletConnectModal';
 import { UserWallet, X402Service, TransactionRecord, AuditLogRecord } from './types';
-import { ConnectedWeb3Wallet } from './lib/web3Wallet';
+import {
+  ConnectedWeb3Wallet,
+  subscribeToEthereumEvents,
+  fetchWeb3Balances,
+  getNetworkName,
+  formatAddress,
+  ARC_TESTNET_CONFIG,
+} from './lib/web3Wallet';
 import { auth, googleAuthProvider } from './lib/firebase';
 import { signInWithPopup, signOut, onAuthStateChanged, User } from 'firebase/auth';
 import { Zap, ShieldCheck, Cpu, RefreshCw, Sparkles, Layers, Terminal } from 'lucide-react';
@@ -75,6 +82,46 @@ export default function App() {
     loadAllData();
   }, [idToken]);
 
+  // 3. Listen to MetaMask / EVM account and chain changes
+  useEffect(() => {
+    const unsubscribe = subscribeToEthereumEvents(
+      async (accounts) => {
+        if (!accounts || accounts.length === 0) {
+          setConnectedWeb3Wallet(null);
+          showToast('Web3 Wallet disconnected');
+        } else if (connectedWeb3Wallet) {
+          const newAddress = accounts[0];
+          const balances = await fetchWeb3Balances(newAddress);
+          const updated: ConnectedWeb3Wallet = {
+            ...connectedWeb3Wallet,
+            address: newAddress,
+            shortAddress: formatAddress(newAddress),
+            balanceNative: balances.balanceNative,
+            balanceUsdc: balances.balanceUsdc,
+          };
+          handleWeb3WalletConnected(updated);
+          showToast(`Switched Web3 Account: ${formatAddress(newAddress)}`);
+        }
+      },
+      async (chainId) => {
+        if (connectedWeb3Wallet) {
+          const isArc = chainId.toLowerCase() === ARC_TESTNET_CONFIG.chainIdHex.toLowerCase();
+          const balances = await fetchWeb3Balances(connectedWeb3Wallet.address);
+          const updated: ConnectedWeb3Wallet = {
+            ...connectedWeb3Wallet,
+            chainId,
+            networkName: getNetworkName(chainId),
+            isArcNetwork: isArc,
+            balanceNative: balances.balanceNative,
+            balanceUsdc: balances.balanceUsdc,
+          };
+          handleWeb3WalletConnected(updated);
+        }
+      }
+    );
+    return () => unsubscribe();
+  }, [connectedWeb3Wallet]);
+
   const loadAllData = async () => {
     setIsLoadingWallet(true);
     try {
@@ -97,6 +144,31 @@ export default function App() {
       console.warn('Initial data load warning:', err.message);
     } finally {
       setIsLoadingWallet(false);
+    }
+  };
+
+  // Web3 Connection Sync Handler
+  const handleWeb3WalletConnected = async (w: ConnectedWeb3Wallet | null) => {
+    setConnectedWeb3Wallet(w);
+    if (!w) return;
+
+    try {
+      const res = await fetchWithAuth('/api/wallet/link-web3', {
+        method: 'POST',
+        body: JSON.stringify({
+          web3Address: w.address,
+          walletType: w.walletType,
+          chainId: w.chainId,
+          depositUsdcAmount: 0,
+        }),
+      });
+      if (res.wallet) {
+        setWallet(res.wallet);
+      }
+      const auditRes = await fetchWithAuth('/api/audit-logs');
+      if (auditRes.auditLogs) setAuditLogs(auditRes.auditLogs);
+    } catch (err: any) {
+      console.warn('Syncing Web3 wallet with backend failed:', err);
     }
   };
 
@@ -138,7 +210,35 @@ export default function App() {
   };
 
   const handleDepositFromWeb3 = async (amount: number) => {
-    await handleFundWallet(amount);
+    setIsProcessing(true);
+    try {
+      const res = await fetchWithAuth('/api/wallet/link-web3', {
+        method: 'POST',
+        body: JSON.stringify({
+          web3Address: connectedWeb3Wallet?.address || wallet?.address,
+          walletType: connectedWeb3Wallet?.walletType || 'metamask',
+          chainId: connectedWeb3Wallet?.chainId || '0x1B4',
+          depositUsdcAmount: amount,
+        }),
+      });
+      if (res.wallet) setWallet(res.wallet);
+
+      if (connectedWeb3Wallet) {
+        const balances = await fetchWeb3Balances(connectedWeb3Wallet.address);
+        setConnectedWeb3Wallet({
+          ...connectedWeb3Wallet,
+          balanceNative: balances.balanceNative,
+          balanceUsdc: balances.balanceUsdc,
+        });
+      }
+
+      showToast(`Bridged +$${amount} USDC to Circle Nanopayment Stream!`);
+      await loadAllData();
+    } catch (err: any) {
+      showToast(`Deposit failed: ${err.message}`, 'error');
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const handleUpdateSettings = async (settings: {
@@ -322,7 +422,7 @@ export default function App() {
         isOpen={isWeb3ModalOpen}
         onClose={() => setIsWeb3ModalOpen(false)}
         connectedWallet={connectedWeb3Wallet}
-        onWalletConnected={(w) => setConnectedWeb3Wallet(w)}
+        onWalletConnected={handleWeb3WalletConnected}
         onDepositToCircleStream={handleDepositFromWeb3}
         showToast={showToast}
       />

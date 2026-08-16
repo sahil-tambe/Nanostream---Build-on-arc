@@ -334,24 +334,60 @@ export const WalletCard: React.FC<WalletCardProps> = ({
         </div>
 
         {connectedWeb3Wallet ? (
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
-            <div className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-2xs space-y-1">
-              <span className="text-slate-500 font-semibold block">Connected Chain</span>
-              <span className="font-bold text-slate-800 flex items-center gap-1.5">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> {connectedWeb3Wallet.networkName}
-              </span>
+          <div className="space-y-3 text-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-2xs space-y-1">
+                <span className="text-slate-500 font-semibold block">Connected Chain</span>
+                <span className="font-bold text-slate-800 flex items-center gap-1.5">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> {connectedWeb3Wallet.networkName}
+                </span>
+              </div>
+              <div className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-2xs space-y-1">
+                <span className="text-slate-500 font-semibold block">Native Gas Balance</span>
+                <span className="font-bold font-mono text-slate-900 text-sm block">
+                  {connectedWeb3Wallet.balanceNative} ARC
+                </span>
+              </div>
+              <div className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-2xs space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-500 font-semibold block">Web3 Wallet USDC</span>
+                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                    Synced
+                  </span>
+                </div>
+                <span className="font-bold font-mono text-indigo-600 text-sm block">
+                  ${connectedWeb3Wallet.balanceUsdc} USDC
+                </span>
+              </div>
             </div>
-            <div className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-2xs space-y-1">
-              <span className="text-slate-500 font-semibold block">Native Gas Balance</span>
-              <span className="font-bold font-mono text-slate-900 text-sm block">
-                {connectedWeb3Wallet.balanceNative} ARC
-              </span>
-            </div>
-            <div className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-2xs space-y-1">
-              <span className="text-slate-500 font-semibold block">Web3 Wallet USDC</span>
-              <span className="font-bold font-mono text-indigo-600 text-sm block">
-                ${connectedWeb3Wallet.balanceUsdc} USDC
-              </span>
+
+            {/* Quick Bridge Bar */}
+            <div className="bg-white border border-indigo-100 rounded-xl p-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs">
+              <div className="flex items-center space-x-2">
+                <Zap className="w-4 h-4 text-indigo-600 flex-shrink-0" />
+                <div>
+                  <span className="font-bold text-slate-800 block text-xs">
+                    Bridge Funds from {connectedWeb3Wallet.walletType.toUpperCase()} to Circle Streaming Pool
+                  </span>
+                  <span className="text-[11px] text-slate-500 font-medium">
+                    Instantly increases your x402 autonomous streaming budget
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {[10, 25, 50, 100].map((amt) => (
+                  <button
+                    key={amt}
+                    type="button"
+                    disabled={isProcessing}
+                    onClick={() => onFundWallet(amt)}
+                    className="px-2.5 py-1.5 bg-indigo-50 hover:bg-indigo-600 hover:text-white text-indigo-700 font-bold rounded-lg border border-indigo-200 text-xs transition-all cursor-pointer shadow-2xs active:scale-95"
+                  >
+                    +${amt} USDC
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         ) : (
